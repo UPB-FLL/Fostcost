@@ -2,7 +2,6 @@ import os
 import json
 import datetime
 import re
-from collections import defaultdict
 
 import requests
 from flask import Flask, render_template, request, jsonify
@@ -94,7 +93,12 @@ def fetch_square_catalog_index():
         if cursor:
             params["cursor"] = cursor
 
-        r = requests.get(f"{SQUARE_BASE}/catalog/list", headers=square_headers(), params=params, timeout=30)
+        r = requests.get(
+            f"{SQUARE_BASE}/catalog/list",
+            headers=square_headers(),
+            params=params,
+            timeout=30,
+        )
         r.raise_for_status()
         data = r.json()
         objects.extend(data.get("objects", []))
@@ -116,6 +120,7 @@ def fetch_square_catalog_index():
         item_name = item_name_by_id.get(item_id, "")
         variation_name = var_data.get("name", "")
         price_money = var_data.get("price_money") or {}
+
         variation_map[obj.get("id")] = {
             "catalog_object_id": obj.get("id"),
             "item_id": item_id,
@@ -164,7 +169,12 @@ def fetch_square_orders(location_id, start_at, end_at, use_closed_at=True):
         if cursor:
             payload["cursor"] = cursor
 
-        r = requests.post(f"{SQUARE_BASE}/orders/search", headers=square_headers(), json=payload, timeout=30)
+        r = requests.post(
+            f"{SQUARE_BASE}/orders/search",
+            headers=square_headers(),
+            json=payload,
+            timeout=30,
+        )
         r.raise_for_status()
         data = r.json()
         orders.extend(data.get("orders", []))
@@ -191,7 +201,10 @@ def build_square_sales_mix(location_id, start_at, end_at):
 
             item_name = catalog_row.get("item_name") or line.get("name", "")
             variation_name = catalog_row.get("variation_name") or line.get("variation_name", "")
-            display_name = catalog_row.get("display_name") or line_item_display_name(item_name or line.get("name", ""), variation_name)
+            display_name = catalog_row.get("display_name") or line_item_display_name(
+                item_name or line.get("name", ""),
+                variation_name,
+            )
 
             key = catalog_object_id or normalize_name(display_name)
             if key not in rows:
@@ -262,7 +275,11 @@ def build_recipe_cost_rows(db):
         if row["square_catalog_object_id"]:
             by_square_id[row["square_catalog_object_id"]] = row
 
-        for name_value in {row["name"], row["square_item_name"], line_item_display_name(row["square_item_name"], row["square_variation_name"])}:
+        for name_value in {
+            row["name"],
+            row["square_item_name"],
+            line_item_display_name(row["square_item_name"], row["square_variation_name"]),
+        }:
             normalized = normalize_name(name_value)
             if normalized:
                 by_name[normalized] = row
@@ -310,7 +327,12 @@ def square_orders():
         "limit": 500,
     }
     try:
-        r = requests.post(f"{SQUARE_BASE}/orders/search", headers=square_headers(), json=payload, timeout=15)
+        r = requests.post(
+            f"{SQUARE_BASE}/orders/search",
+            headers=square_headers(),
+            json=payload,
+            timeout=15,
+        )
         r.raise_for_status()
         return jsonify(r.json())
     except Exception as e:
@@ -322,7 +344,10 @@ def square_catalog():
     """Return a flattened Square catalog with actual item names + variation IDs."""
     try:
         variation_map = fetch_square_catalog_index()
-        return jsonify({"items": list(variation_map.values())})
+        return jsonify({
+            "items": list(variation_map.values()),
+            "count": len(variation_map),
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -369,7 +394,12 @@ def spoton_sales():
         "end_date": body.get("end_date"),
     }
     try:
-        r = requests.get(f"{SPOTON_BASE}/reports/sales", headers=spoton_headers(), params=params, timeout=15)
+        r = requests.get(
+            f"{SPOTON_BASE}/reports/sales",
+            headers=spoton_headers(),
+            params=params,
+            timeout=15,
+        )
         r.raise_for_status()
         return jsonify(r.json())
     except Exception as e:
@@ -388,7 +418,6 @@ def spoton_menu():
 
 # ── FOOD COST TRACKER (local DB helpers) ─────────────────────────────────────
 
-# --- ingredients ---
 @app.route("/api/ingredients", methods=["GET", "POST"])
 def ingredients():
     db = load_db()
@@ -416,7 +445,6 @@ def ingredient_detail(iid):
     return jsonify(db["ingredients"][idx])
 
 
-# --- recipes ---
 @app.route("/api/recipes", methods=["GET", "POST"])
 def recipes():
     db = load_db()
@@ -445,7 +473,6 @@ def recipe_detail(rid):
     return jsonify(db["recipes"][idx])
 
 
-# --- cost summary ---
 @app.route("/api/cost_summary")
 def cost_summary():
     db = load_db()
@@ -509,7 +536,10 @@ def cost_summary():
         "unmatched_square_items": len(unmatched),
     }
     if totals["actual_revenue"]:
-        totals["actual_food_cost_pct"] = round((totals["actual_cogs"] / totals["actual_revenue"]) * 100, 2)
+        totals["actual_food_cost_pct"] = round(
+            (totals["actual_cogs"] / totals["actual_revenue"]) * 100,
+            2,
+        )
 
     return jsonify({
         "items": rows,
