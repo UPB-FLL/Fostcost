@@ -6,6 +6,9 @@ import re
 import requests
 from flask import Flask, render_template, request, jsonify
 from supabase import create_client, Client
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "change-me-in-production")
