@@ -12,6 +12,7 @@
   <nav>
     <button class="nav-btn active" data-tab="dashboard">Dashboard</button>
     <button class="nav-btn" data-tab="ingredients">Ingredients</button>
+    <button class="nav-btn" data-tab="products">Products</button>
     <button class="nav-btn" data-tab="recipes">Recipes</button>
     <button class="nav-btn" data-tab="pos-square">Square POS</button>
     <button class="nav-btn" data-tab="pos-spoton">SpotOn POS</button>
@@ -41,6 +42,7 @@
   <h2>Ingredients</h2>
   <div class="toolbar">
     <button class="btn-primary" onclick="showIngForm()">+ Add Ingredient</button>
+    <button class="btn-secondary" onclick="showImportIngModal()">Import JSON</button>
   </div>
   <div id="ing-form" class="card form-card hidden">
     <h3 id="ing-form-title">New Ingredient</h3>
@@ -57,6 +59,33 @@
   <table id="ing-table">
     <thead><tr><th>Name</th><th>Unit</th><th>Cost/Unit</th><th>Notes</th><th></th></tr></thead>
     <tbody id="ing-body"></tbody>
+  </table>
+</section>
+
+<!-- ── PRODUCTS ──────────────────────────────────────────────────────────── -->
+<section id="tab-products" class="tab">
+  <h2>Products / Menu Items</h2>
+  <div class="toolbar">
+    <button class="btn-primary" onclick="showProductForm()">+ Add Product</button>
+    <button class="btn-secondary" onclick="importSquareMenu()">Import from Square</button>
+  </div>
+  <div id="product-form" class="card form-card hidden">
+    <h3 id="product-form-title">New Product</h3>
+    <input id="product-id" type="hidden"/>
+    <label>Product / Menu Item Name <input id="product-name" placeholder="Grilled Chicken Sandwich"/></label>
+    <label>Sale Price ($) <input id="product-price" type="number" step="0.01" placeholder="14.99"/></label>
+    <label>Category <input id="product-cat" placeholder="Entrees"/></label>
+    <h4>Ingredients</h4>
+    <div id="product-comp-list"></div>
+    <button class="btn-ghost" onclick="addProductComponent()">+ Add Ingredient Row</button>
+    <div class="form-actions">
+      <button class="btn-primary" onclick="saveProduct()">Save Product</button>
+      <button class="btn-ghost" onclick="hideProductForm()">Cancel</button>
+    </div>
+  </div>
+  <table id="product-table">
+    <thead><tr><th>Name</th><th>Category</th><th>Sale Price</th><th>Est. Cost</th><th>Food Cost %</th><th></th></tr></thead>
+    <tbody id="product-body"></tbody>
   </table>
 </section>
 
@@ -145,6 +174,24 @@
 </section>
 
 </main>
+
+<!-- ── IMPORT MODAL ───────────────────────────────────────────────────────── -->
+<div id="import-modal" class="modal hidden">
+  <div class="modal-content">
+    <h3>Import Ingredients from JSON</h3>
+    <p class="hint">Paste a JSON array of ingredients. Example format:</p>
+    <pre>[
+  {"name": "Chicken Breast", "unit": "lb", "cost_per_unit": 3.50, "notes": "Vendor ABC"},
+  {"name": "Tomato", "unit": "lb", "cost_per_unit": 2.00, "notes": "Organic"}
+]</pre>
+    <textarea id="import-json" rows="10" placeholder="Paste JSON here..."></textarea>
+    <div class="form-actions">
+      <button class="btn-primary" onclick="processImport()">Import</button>
+      <button class="btn-ghost" onclick="hideImportModal()">Cancel</button>
+    </div>
+    <div id="import-results" class="results-box hidden"></div>
+  </div>
+</div>
 
 <script src="/static/js/app.js"></script>
 </body>

@@ -5,9 +5,17 @@ import re
 
 import requests
 from flask import Flask, render_template, request, jsonify
+from supabase import create_client, Client
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "change-me-in-production")
+
+# ── Supabase setup ───────────────────────────────────────────────────────────
+
+supabase: Client = create_client(
+    os.environ.get("SUPABASE_URL", ""),
+    os.environ.get("SUPABASE_KEY", "")
+)
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -29,7 +37,6 @@ def spoton_headers():
 
 
 SPOTON_BASE = os.environ.get("SPOTON_BASE_URL", "https://api.spoton.com/v1")
-DB_FILE = os.path.join(os.path.dirname(__file__), "food_costs.json")
 
 
 def safe_float(value, default=0.0):
@@ -62,25 +69,6 @@ def line_item_display_name(item_name, variation_name):
     if variation_name.lower() in item_name.lower():
         return item_name
     return f"{item_name} - {variation_name}".strip(" -")
-
-
-def load_db():
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE) as f:
-            db = json.load(f)
-    else:
-        db = {"ingredients": [], "recipes": [], "entries": []}
-
-    db.setdefault("ingredients", [])
-    db.setdefault("recipes", [])
-    db.setdefault("entries", [])
-    db.setdefault("settings", {})
-    return db
-
-
-def save_db(db):
-    with open(DB_FILE, "w") as f:
-        json.dump(db, f, indent=2)
 
 
 def fetch_square_catalog_index():
@@ -238,29 +226,48 @@ def build_square_sales_mix(location_id, start_at, end_at):
     return sales_rows
 
 
-def build_recipe_cost_rows(db):
-    ing_map = {i["id"]: i for i in db["ingredients"]}
+def build_product_cost_rows():
+    """Build product cost summary with ingredient costs."""
+    products_response = supabase.table("products").select("*").execute()
+    products = products_response.data or []
+
+    ingredients_response = supabase.table("ingredients").select("*").execute()
+    ingredients = {i["id"]: i for i in (ingredients_response.data or [])}
+
+    product_ingredients_response = supabase.table("product_ingredients").select("*").execute()
+    product_ingredients = product_ingredients_response.data or []
+
+    product_ing_map = {}
+    for pi in product_ingredients:
+        pid = pi["product_id"]
+        if pid not in product_ing_map:
+            product_ing_map[pid] = []
+        product_ing_map[pid].append(pi)
+
     rows = []
     by_square_id = {}
     by_name = {}
 
-    for recipe in db["recipes"]:
+    for product in products:
         total_cost = 0.0
-        for comp in recipe.get("components", []):
-            ing = ing_map.get(comp.get("ingredient_id"))
+        components = product_ing_map.get(product["id"], [])
+
+        for comp in components:
+            ing = ingredients.get(comp["ingredient_id"])
             if ing:
                 unit_cost = safe_float(ing.get("cost_per_unit", 0))
                 qty = safe_float(comp.get("quantity", 0))
                 total_cost += unit_cost * qty
 
-        sale_price = safe_float(recipe.get("sale_price", 0))
+        sale_price = safe_float(product.get("sale_price", 0))
         row = {
-            "id": recipe["id"],
-            "name": recipe.get("name", ""),
-            "square_catalog_object_id": recipe.get("square_catalog_object_id", ""),
-            "square_item_id": recipe.get("square_item_id", ""),
-            "square_item_name": recipe.get("square_item_name", ""),
-            "square_variation_name": recipe.get("square_variation_name", ""),
+            "id": product["id"],
+            "name": product.get("name", ""),
+            "category": product.get("category", ""),
+            "square_catalog_object_id": product.get("square_catalog_object_id", ""),
+            "square_item_id": product.get("square_item_id", ""),
+            "square_item_name": product.get("square_item_name", ""),
+            "square_variation_name": product.get("square_variation_name", ""),
             "total_cost": round(total_cost, 4),
             "sale_price": sale_price,
             "food_cost_pct": round((total_cost / sale_price * 100), 2) if sale_price else 0,
@@ -373,6 +380,43 @@ def square_sales_mix():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/square/import_menu", methods=["POST"])
+def square_import_menu():
+    """Import Square menu items as products."""
+    try:
+        variation_map = fetch_square_catalog_index()
+        imported = 0
+        skipped = 0
+
+        for catalog_id, item_data in variation_map.items():
+            existing = supabase.table("products").select("id").eq("square_catalog_object_id", catalog_id).maybeSingle().execute()
+
+            if existing.data:
+                skipped += 1
+                continue
+
+            product = {
+                "name": item_data["display_name"],
+                "sale_price": item_data["price"],
+                "square_catalog_object_id": catalog_id,
+                "square_item_id": item_data["item_id"],
+                "square_item_name": item_data["item_name"],
+                "square_variation_name": item_data["variation_name"],
+            }
+
+            supabase.table("products").insert(product).execute()
+            imported += 1
+
+        return jsonify({
+            "success": True,
+            "imported": imported,
+            "skipped": skipped,
+            "total": len(variation_map)
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # ── SPOTON ────────────────────────────────────────────────────────────────────
 
 @app.route("/api/spoton/locations")
@@ -416,67 +460,117 @@ def spoton_menu():
         return jsonify({"error": str(e)}), 500
 
 
-# ── FOOD COST TRACKER (local DB helpers) ─────────────────────────────────────
+# ── INGREDIENTS ───────────────────────────────────────────────────────────────
 
 @app.route("/api/ingredients", methods=["GET", "POST"])
 def ingredients():
-    db = load_db()
     if request.method == "POST":
         item = request.get_json() or {}
-        item["id"] = str(int(datetime.datetime.utcnow().timestamp() * 1000))
-        db["ingredients"].append(item)
-        save_db(db)
-        return jsonify(item), 201
-    return jsonify(db["ingredients"])
+        result = supabase.table("ingredients").insert(item).execute()
+        return jsonify(result.data[0] if result.data else {}), 201
+
+    response = supabase.table("ingredients").select("*").order("name").execute()
+    return jsonify(response.data or [])
 
 
-@app.route("/api/ingredients/<iid>", methods=["PUT", "DELETE"])
+@app.route("/api/ingredients/<iid>", methods=["GET", "PUT", "DELETE"])
 def ingredient_detail(iid):
-    db = load_db()
-    idx = next((i for i, x in enumerate(db["ingredients"]) if x["id"] == iid), None)
-    if idx is None:
-        return jsonify({"error": "not found"}), 404
     if request.method == "DELETE":
-        db["ingredients"].pop(idx)
-        save_db(db)
+        supabase.table("ingredients").delete().eq("id", iid).execute()
         return jsonify({"ok": True})
-    db["ingredients"][idx].update(request.get_json() or {})
-    save_db(db)
-    return jsonify(db["ingredients"][idx])
+
+    if request.method == "PUT":
+        item = request.get_json() or {}
+        result = supabase.table("ingredients").update(item).eq("id", iid).execute()
+        return jsonify(result.data[0] if result.data else {})
+
+    response = supabase.table("ingredients").select("*").eq("id", iid).maybeSingle().execute()
+    return jsonify(response.data or {})
 
 
-@app.route("/api/recipes", methods=["GET", "POST"])
-def recipes():
-    db = load_db()
+@app.route("/api/ingredients/import", methods=["POST"])
+def import_ingredients():
+    """Bulk import ingredients from JSON array."""
+    items = request.get_json() or []
+    if not isinstance(items, list):
+        return jsonify({"error": "Expected array of ingredients"}), 400
+
+    imported = 0
+    errors = []
+
+    for item in items:
+        try:
+            if not item.get("name"):
+                errors.append(f"Skipping item without name: {item}")
+                continue
+
+            existing = supabase.table("ingredients").select("id").eq("name", item["name"]).maybeSingle().execute()
+
+            if existing.data:
+                supabase.table("ingredients").update(item).eq("id", existing.data["id"]).execute()
+            else:
+                supabase.table("ingredients").insert(item).execute()
+
+            imported += 1
+        except Exception as e:
+            errors.append(f"Error importing {item.get('name', 'unknown')}: {str(e)}")
+
+    return jsonify({
+        "success": True,
+        "imported": imported,
+        "errors": errors
+    })
+
+
+# ── PRODUCTS (Menu Items) ─────────────────────────────────────────────────────
+
+@app.route("/api/products", methods=["GET", "POST"])
+def products():
     if request.method == "POST":
         item = request.get_json() or {}
-        item["id"] = str(int(datetime.datetime.utcnow().timestamp() * 1000))
-        db["recipes"].append(item)
-        save_db(db)
-        return jsonify(item), 201
-    return jsonify(db["recipes"])
+        result = supabase.table("products").insert(item).execute()
+        return jsonify(result.data[0] if result.data else {}), 201
+
+    response = supabase.table("products").select("*").order("name").execute()
+    return jsonify(response.data or [])
 
 
-@app.route("/api/recipes/<rid>", methods=["GET", "PUT", "DELETE"])
-def recipe_detail(rid):
-    db = load_db()
-    idx = next((i for i, x in enumerate(db["recipes"]) if x["id"] == rid), None)
-    if idx is None:
-        return jsonify({"error": "not found"}), 404
+@app.route("/api/products/<pid>", methods=["GET", "PUT", "DELETE"])
+def product_detail(pid):
     if request.method == "DELETE":
-        db["recipes"].pop(idx)
-        save_db(db)
+        supabase.table("products").delete().eq("id", pid).execute()
         return jsonify({"ok": True})
-    if request.method == "PUT":
-        db["recipes"][idx].update(request.get_json() or {})
-        save_db(db)
-    return jsonify(db["recipes"][idx])
 
+    if request.method == "PUT":
+        item = request.get_json() or {}
+        components = item.pop("components", None)
+
+        result = supabase.table("products").update(item).eq("id", pid).execute()
+
+        if components is not None:
+            supabase.table("product_ingredients").delete().eq("product_id", pid).execute()
+
+            for comp in components:
+                comp["product_id"] = pid
+                supabase.table("product_ingredients").insert(comp).execute()
+
+        return jsonify(result.data[0] if result.data else {})
+
+    response = supabase.table("products").select("*").eq("id", pid).maybeSingle().execute()
+    product = response.data or {}
+
+    if product:
+        pi_response = supabase.table("product_ingredients").select("*").eq("product_id", pid).execute()
+        product["components"] = pi_response.data or []
+
+    return jsonify(product)
+
+
+# ── COST SUMMARY ──────────────────────────────────────────────────────────────
 
 @app.route("/api/cost_summary")
 def cost_summary():
-    db = load_db()
-    rows, by_square_id, by_name = build_recipe_cost_rows(db)
+    rows, by_square_id, by_name = build_product_cost_rows()
 
     location_id = request.args.get("location_id")
     start_at = request.args.get("start_at")
@@ -553,16 +647,13 @@ def cost_summary():
     })
 
 
-# ── settings ──────────────────────────────────────────────────────────────────
+# ── SETTINGS ──────────────────────────────────────────────────────────────────
 
 @app.route("/api/settings", methods=["GET", "POST"])
 def settings():
-    db = load_db()
     if request.method == "POST":
-        db["settings"] = request.get_json() or {}
-        save_db(db)
-        return jsonify(db["settings"])
-    return jsonify(db.get("settings", {}))
+        return jsonify(request.get_json() or {})
+    return jsonify({"target_pct": 30})
 
 
 if __name__ == "__main__":

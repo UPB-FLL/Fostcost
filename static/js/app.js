@@ -11,7 +11,7 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
 
 /* ── globals ─────────────────────────────────────────────────────────────── */
 let ingredients = [];
-let recipes     = [];
+let products    = [];
 let settings    = { target_pct: 30 };
 
 /* ── API helpers ─────────────────────────────────────────────────────────── */
@@ -24,13 +24,14 @@ async function api(method, path, body) {
 
 /* ── INIT ────────────────────────────────────────────────────────────────── */
 async function init() {
-  [ingredients, recipes] = await Promise.all([
+  [ingredients, products] = await Promise.all([
     api('GET', '/api/ingredients'),
-    api('GET', '/api/recipes'),
+    api('GET', '/api/products'),
   ]);
   settings = (await api('GET', '/api/settings')) || {};
   if (settings.target_pct) document.getElementById('target-pct').value = settings.target_pct;
   renderIngredients();
+  renderProducts();
   renderRecipes();
   await loadDashboard();
   checkTokenStatus();
@@ -39,15 +40,14 @@ async function init() {
 /* ══ DASHBOARD ═══════════════════════════════════════════════════════════════ */
 async function loadDashboard() {
   const data = await api('GET', '/api/cost_summary');
-  if (!data || !Array.isArray(data)) return;
+  if (!data || !data.items) return;
 
   const target = parseFloat(settings.target_pct || 30);
-  let totalCost = 0, totalSale = 0;
+  const items = data.items || [];
   const tbody = document.getElementById('summary-body');
   tbody.innerHTML = '';
-  data.forEach(r => {
-    totalCost += r.total_cost;
-    totalSale += r.sale_price;
+
+  items.forEach(r => {
     const pct    = r.food_cost_pct;
     const status = pct === 0 ? '<span class="badge badge-na">N/A</span>'
                  : pct <= target ? '<span class="badge badge-ok">✔ On Target</span>'
@@ -63,11 +63,12 @@ async function loadDashboard() {
     </tr>`;
   });
 
-  const avg = totalSale > 0 ? (totalCost / totalSale * 100).toFixed(1) : '—';
+  const totals = data.totals || {};
+  const avg = totals.actual_food_cost_pct || 0;
   document.getElementById('kpi-row').innerHTML = `
-    <div class="kpi-card"><div class="kpi-val">${data.length}</div><div class="kpi-lbl">Recipes Tracked</div></div>
+    <div class="kpi-card"><div class="kpi-val">${items.length}</div><div class="kpi-lbl">Products Tracked</div></div>
     <div class="kpi-card"><div class="kpi-val">${ingredients.length}</div><div class="kpi-lbl">Ingredients</div></div>
-    <div class="kpi-card"><div class="kpi-val">${avg}%</div><div class="kpi-lbl">Avg Food Cost %</div></div>
+    <div class="kpi-card"><div class="kpi-val">${avg.toFixed(1)}%</div><div class="kpi-lbl">Avg Food Cost %</div></div>
     <div class="kpi-card"><div class="kpi-val">${target}%</div><div class="kpi-lbl">Target Food Cost %</div></div>
   `;
 }
@@ -141,51 +142,88 @@ async function deleteIngredient(id) {
   renderIngredients();
 }
 
-/* ══ RECIPES ═════════════════════════════════════════════════════════════════ */
-function renderRecipes() {
-  const tbody = document.getElementById('recipe-body');
+function showImportIngModal() {
+  document.getElementById('import-modal').classList.remove('hidden');
+  document.getElementById('import-json').value = '';
+  document.getElementById('import-results').classList.add('hidden');
+}
+
+function hideImportModal() {
+  document.getElementById('import-modal').classList.add('hidden');
+}
+
+async function processImport() {
+  const jsonText = document.getElementById('import-json').value;
+  const resultsBox = document.getElementById('import-results');
+
+  try {
+    const data = JSON.parse(jsonText);
+    if (!Array.isArray(data)) {
+      throw new Error('JSON must be an array of ingredients');
+    }
+
+    resultsBox.textContent = 'Importing...';
+    resultsBox.classList.remove('hidden');
+
+    const result = await api('POST', '/api/ingredients/import', data);
+
+    resultsBox.textContent = `Success!\nImported: ${result.imported}\nErrors: ${result.errors.length}\n\n${result.errors.join('\n')}`;
+
+    ingredients = await api('GET', '/api/ingredients');
+    renderIngredients();
+    await loadDashboard();
+  } catch (e) {
+    resultsBox.classList.remove('hidden');
+    resultsBox.textContent = `Error: ${e.message}`;
+  }
+}
+
+/* ══ PRODUCTS ════════════════════════════════════════════════════════════════ */
+function renderProducts() {
+  const tbody = document.getElementById('product-body');
   tbody.innerHTML = '';
-  recipes.forEach(r => {
+  products.forEach(p => {
     tbody.innerHTML += `<tr>
-      <td>${r.name}</td>
-      <td>${r.category || ''}</td>
-      <td>$${parseFloat(r.sale_price || 0).toFixed(2)}</td>
+      <td>${p.name}</td>
+      <td>${p.category || ''}</td>
+      <td>$${parseFloat(p.sale_price || 0).toFixed(2)}</td>
       <td>—</td>
       <td>—</td>
       <td>
-        <button class="btn-primary btn-sm" onclick="editRecipe('${r.id}')">Edit</button>
-        <button class="btn-ghost btn-sm" onclick="deleteRecipe('${r.id}')">Del</button>
+        <button class="btn-primary btn-sm" onclick="editProduct('${p.id}')">Edit</button>
+        <button class="btn-ghost btn-sm" onclick="deleteProduct('${p.id}')">Del</button>
       </td>
     </tr>`;
   });
 }
 
-function showRecipeForm() {
-  document.getElementById('recipe-id').value   = '';
-  document.getElementById('recipe-name').value = '';
-  document.getElementById('recipe-price').value= '';
-  document.getElementById('recipe-cat').value  = '';
-  document.getElementById('comp-list').innerHTML = '';
-  document.getElementById('recipe-form-title').textContent = 'New Recipe';
-  document.getElementById('recipe-form').classList.remove('hidden');
+function showProductForm() {
+  document.getElementById('product-id').value   = '';
+  document.getElementById('product-name').value = '';
+  document.getElementById('product-price').value= '';
+  document.getElementById('product-cat').value  = '';
+  document.getElementById('product-comp-list').innerHTML = '';
+  document.getElementById('product-form-title').textContent = 'New Product';
+  document.getElementById('product-form').classList.remove('hidden');
 }
-function hideRecipeForm() { document.getElementById('recipe-form').classList.add('hidden'); }
+function hideProductForm() { document.getElementById('product-form').classList.add('hidden'); }
 
-function editRecipe(id) {
-  const r = recipes.find(x => x.id === id);
-  if (!r) return;
-  document.getElementById('recipe-id').value    = r.id;
-  document.getElementById('recipe-name').value  = r.name;
-  document.getElementById('recipe-price').value = r.sale_price;
-  document.getElementById('recipe-cat').value   = r.category || '';
-  document.getElementById('comp-list').innerHTML = '';
-  (r.components || []).forEach(c => addComponent(c));
-  document.getElementById('recipe-form-title').textContent = 'Edit Recipe';
-  document.getElementById('recipe-form').classList.remove('hidden');
+async function editProduct(id) {
+  const p = await api('GET', `/api/products/${id}`);
+  if (!p || !p.id) return;
+
+  document.getElementById('product-id').value    = p.id;
+  document.getElementById('product-name').value  = p.name;
+  document.getElementById('product-price').value = p.sale_price;
+  document.getElementById('product-cat').value   = p.category || '';
+  document.getElementById('product-comp-list').innerHTML = '';
+  (p.components || []).forEach(c => addProductComponent(c));
+  document.getElementById('product-form-title').textContent = 'Edit Product';
+  document.getElementById('product-form').classList.remove('hidden');
 }
 
-function addComponent(existing) {
-  const list = document.getElementById('comp-list');
+function addProductComponent(existing) {
+  const list = document.getElementById('product-comp-list');
   const div  = document.createElement('div');
   div.className = 'comp-row';
   const opts = ingredients.map(i =>
@@ -199,35 +237,61 @@ function addComponent(existing) {
   list.appendChild(div);
 }
 
-async function saveRecipe() {
-  const id    = document.getElementById('recipe-id').value;
-  const comps = [...document.querySelectorAll('.comp-row')].map(row => ({
+async function saveProduct() {
+  const id    = document.getElementById('product-id').value;
+  const comps = [...document.querySelectorAll('#product-comp-list .comp-row')].map(row => ({
     ingredient_id: row.querySelector('select').value,
     quantity:      parseFloat(row.querySelector('input').value) || 0,
   }));
   const body = {
-    name:       document.getElementById('recipe-name').value,
-    sale_price: document.getElementById('recipe-price').value,
-    category:   document.getElementById('recipe-cat').value,
+    name:       document.getElementById('product-name').value,
+    sale_price: document.getElementById('product-price').value,
+    category:   document.getElementById('product-cat').value,
     components: comps,
   };
   if (id) {
-    await api('PUT', `/api/recipes/${id}`, body);
+    await api('PUT', `/api/products/${id}`, body);
   } else {
-    await api('POST', '/api/recipes', body);
+    await api('POST', '/api/products', body);
   }
-  recipes = await api('GET', '/api/recipes');
-  renderRecipes();
-  hideRecipeForm();
+  products = await api('GET', '/api/products');
+  renderProducts();
+  hideProductForm();
   await loadDashboard();
 }
 
-async function deleteRecipe(id) {
-  if (!confirm('Delete recipe?')) return;
-  await api('DELETE', `/api/recipes/${id}`);
-  recipes = await api('GET', '/api/recipes');
-  renderRecipes();
+async function deleteProduct(id) {
+  if (!confirm('Delete product?')) return;
+  await api('DELETE', `/api/products/${id}`);
+  products = await api('GET', '/api/products');
+  renderProducts();
 }
+
+async function importSquareMenu() {
+  if (!confirm('Import all Square menu items as products? Existing items will be skipped.')) return;
+
+  const result = await api('POST', '/api/square/import_menu', {});
+  alert(`Import complete!\nImported: ${result.imported}\nSkipped: ${result.skipped}\nTotal: ${result.total}`);
+
+  products = await api('GET', '/api/products');
+  renderProducts();
+  await loadDashboard();
+}
+
+/* ══ RECIPES (deprecated - use products) ═════════════════════════════════════ */
+function renderRecipes() {
+  const tbody = document.getElementById('recipe-body');
+  if (tbody) tbody.innerHTML = '';
+}
+
+function showRecipeForm() {
+  alert('Please use the Products tab instead. Recipes have been replaced with Products.');
+}
+function hideRecipeForm() {}
+function editRecipe() {}
+function addComponent() {}
+async function saveRecipe() {}
+async function deleteRecipe() {}
 
 /* ══ SQUARE ══════════════════════════════════════════════════════════════════ */
 async function loadSquareLocations() {
@@ -272,9 +336,9 @@ async function fetchSquareCatalog() {
   const box = document.getElementById('sq-results');
   box.textContent = 'Fetching catalog…';
   const data = await api('GET', '/api/square/catalog');
-  const items = data.objects || [];
+  const items = data.items || [];
   box.textContent = `Catalog items: ${items.length}\n` +
-    items.slice(0,30).map(i => `  ${i.item_variation_data?.name || i.id}`).join('\n');
+    items.slice(0,30).map(i => `  ${i.display_name || i.catalog_object_id}`).join('\n');
 }
 
 /* ══ SPOTON ══════════════════════════════════════════════════════════════════ */
@@ -323,7 +387,6 @@ async function saveSettings() {
 function checkTokenStatus() {
   const sqEl = document.getElementById('sq-token-status');
   const spEl = document.getElementById('sp-token-status');
-  // We just show badges; actual connectivity is tested on use
   sqEl.className = 'badge badge-warn';
   sqEl.textContent = 'Set via .env';
   spEl.className = 'badge badge-warn';

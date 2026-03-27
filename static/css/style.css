@@ -80,3 +80,9 @@ tr:hover td{background:#f7fafc}
 #tab-pos-square .card select,
 #tab-pos-spoton .card input,
 #tab-pos-spoton .card select{border:1px solid #cbd5e0;border-radius:6px;padding:.5rem .75rem;font-size:.9rem;width:100%;max-width:400px}
+
+/* ── modal ────────────────────────────────────────────────────────────────── */
+.modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1000}
+.modal-content{background:#fff;border-radius:10px;padding:2rem;max-width:600px;width:90%;max-height:90vh;overflow:auto}
+.modal-content textarea{width:100%;border:1px solid #cbd5e0;border-radius:6px;padding:.75rem;font-family:monospace;font-size:.85rem;margin:.5rem 0}
+.modal-content pre{background:#f7fafc;padding:.5rem;border-radius:4px;font-size:.75rem;overflow-x:auto;margin:.5rem 0}
