@@ -15,29 +15,20 @@
     <button class="nav-btn" data-tab="products">Products</button>
     <button class="nav-btn" data-tab="recipes">Recipes</button>
     <button class="nav-btn" data-tab="pos-square">Square POS</button>
-    <button class="nav-btn" data-tab="pos-spoton">SpotOn POS</button>
     <button class="nav-btn" data-tab="settings">Settings</button>
   </nav>
 </header>
 
 <main>
-
-<!-- ── DASHBOARD ─────────────────────────────────────────────────────────── -->
 <section id="tab-dashboard" class="tab active">
-  <h2>Dashboard — Cost Summary</h2>
+  <h2>Dashboard</h2>
   <div class="kpi-row" id="kpi-row"></div>
   <table id="summary-table">
-    <thead>
-      <tr>
-        <th>Recipe</th><th>Ingredient Cost</th><th>Sale Price</th>
-        <th>Food Cost %</th><th>Margin</th><th>Status</th>
-      </tr>
-    </thead>
+    <thead><tr><th>Recipe</th><th>Cost</th><th>Price</th><th>Food Cost %</th><th>Margin</th><th>Status</th></tr></thead>
     <tbody id="summary-body"></tbody>
   </table>
 </section>
 
-<!-- ── INGREDIENTS ───────────────────────────────────────────────────────── -->
 <section id="tab-ingredients" class="tab">
   <h2>Ingredients</h2>
   <div class="toolbar">
@@ -48,9 +39,9 @@
     <h3 id="ing-form-title">New Ingredient</h3>
     <input id="ing-id" type="hidden"/>
     <label>Name <input id="ing-name" placeholder="Chicken breast"/></label>
-    <label>Unit (e.g. lb, oz, each) <input id="ing-unit" placeholder="lb"/></label>
+    <label>Unit <input id="ing-unit" placeholder="lb"/></label>
     <label>Cost per unit ($) <input id="ing-cost" type="number" step="0.0001" placeholder="2.50"/></label>
-    <label>Supplier / Notes <input id="ing-notes" placeholder="Optional"/></label>
+    <label>Notes <input id="ing-notes" placeholder="Optional"/></label>
     <div class="form-actions">
       <button class="btn-primary" onclick="saveIngredient()">Save</button>
       <button class="btn-ghost" onclick="hideIngForm()">Cancel</button>
@@ -62,7 +53,6 @@
   </table>
 </section>
 
-<!-- ── PRODUCTS ──────────────────────────────────────────────────────────── -->
 <section id="tab-products" class="tab">
   <h2>Products / Menu Items</h2>
   <div class="toolbar">
@@ -72,7 +62,7 @@
   <div id="product-form" class="card form-card hidden">
     <h3 id="product-form-title">New Product</h3>
     <input id="product-id" type="hidden"/>
-    <label>Product / Menu Item Name <input id="product-name" placeholder="Grilled Chicken Sandwich"/></label>
+    <label>Product Name <input id="product-name" placeholder="Grilled Chicken Sandwich"/></label>
     <label>Sale Price ($) <input id="product-price" type="number" step="0.01" placeholder="14.99"/></label>
     <label>Category <input id="product-cat" placeholder="Entrees"/></label>
     <h4>Ingredients</h4>
@@ -89,93 +79,39 @@
   </table>
 </section>
 
-<!-- ── RECIPES ───────────────────────────────────────────────────────────── -->
 <section id="tab-recipes" class="tab">
   <h2>Recipes</h2>
-  <div class="toolbar">
-    <button class="btn-primary" onclick="showRecipeForm()">+ Add Recipe</button>
-  </div>
-  <div id="recipe-form" class="card form-card hidden">
-    <h3 id="recipe-form-title">New Recipe</h3>
-    <input id="recipe-id" type="hidden"/>
-    <label>Recipe / Menu Item Name <input id="recipe-name" placeholder="Grilled Chicken Sandwich"/></label>
-    <label>Sale Price ($) <input id="recipe-price" type="number" step="0.01" placeholder="14.99"/></label>
-    <label>Category <input id="recipe-cat" placeholder="Entrees"/></label>
-    <h4>Ingredients</h4>
-    <div id="comp-list"></div>
-    <button class="btn-ghost" onclick="addComponent()">+ Add Ingredient Row</button>
-    <div class="form-actions">
-      <button class="btn-primary" onclick="saveRecipe()">Save Recipe</button>
-      <button class="btn-ghost" onclick="hideRecipeForm()">Cancel</button>
-    </div>
-  </div>
-  <table id="recipe-table">
-    <thead><tr><th>Name</th><th>Category</th><th>Sale Price</th><th>Est. Cost</th><th>Food Cost %</th><th></th></tr></thead>
-    <tbody id="recipe-body"></tbody>
-  </table>
+  <p>Please use the Products tab. This section is deprecated.</p>
+  <table><thead><tr><th>Name</th></tr></thead><tbody id="recipe-body"></tbody></table>
 </section>
 
-<!-- ── SQUARE POS ─────────────────────────────────────────────────────────── -->
 <section id="tab-pos-square" class="tab">
   <h2>Square POS Integration</h2>
   <div class="card">
-    <p>Pulls completed orders & catalog items directly from your Square account.</p>
-    <label>Location
-      <select id="sq-location"></select>
-    </label>
+    <label>Location <select id="sq-location"></select></label>
     <button class="btn-primary" onclick="loadSquareLocations()">Load Locations</button>
     <hr/>
     <label>Start Date <input type="date" id="sq-start"/></label>
-    <label>End Date   <input type="date" id="sq-end"/></label>
+    <label>End Date <input type="date" id="sq-end"/></label>
     <button class="btn-primary" onclick="fetchSquareOrders()">Fetch Orders</button>
     <button class="btn-secondary" onclick="fetchSquareCatalog()">Sync Menu Items</button>
   </div>
   <div id="sq-results" class="results-box"></div>
 </section>
 
-<!-- ── SPOTON POS ─────────────────────────────────────────────────────────── -->
-<section id="tab-pos-spoton" class="tab">
-  <h2>SpotOn POS Integration</h2>
-  <div class="card">
-    <p>Pulls sales reports & menu data from your SpotOn account.</p>
-    <label>Location
-      <select id="sp-location"></select>
-    </label>
-    <button class="btn-primary" onclick="loadSpotOnLocations()">Load Locations</button>
-    <hr/>
-    <label>Start Date <input type="date" id="sp-start"/></label>
-    <label>End Date   <input type="date" id="sp-end"/></label>
-    <button class="btn-primary" onclick="fetchSpotOnSales()">Fetch Sales Report</button>
-    <button class="btn-secondary" onclick="fetchSpotOnMenu()">Sync Menu Items</button>
-  </div>
-  <div id="sp-results" class="results-box"></div>
-</section>
-
-<!-- ── SETTINGS ───────────────────────────────────────────────────────────── -->
 <section id="tab-settings" class="tab">
-  <h2>Settings & API Keys</h2>
+  <h2>Settings</h2>
   <div class="card">
-    <p class="hint">⚠️ These values are stored server-side as environment variables. Update your <code>.env</code> file or AWS parameter store — not here. This page shows connection status only.</p>
-    <div class="status-row">
-      <span>Square Access Token</span>
-      <span id="sq-token-status" class="badge">checking…</span>
-    </div>
-    <div class="status-row">
-      <span>SpotOn API Key</span>
-      <span id="sp-token-status" class="badge">checking…</span>
-    </div>
+    <p class="hint">Configure via .env file</p>
+    <div class="status-row"><span>Square Token</span><span id="sq-token-status" class="badge">checking</span></div>
     <hr/>
     <h3>Target Food Cost %</h3>
-    <label>Target % (default 30)
-      <input id="target-pct" type="number" step="0.1" value="30"/>
-    </label>
+    <label>Target % <input id="target-pct" type="number" step="0.1" value="30"/></label>
     <button class="btn-primary" onclick="saveSettings()">Save Settings</button>
   </div>
 </section>
-
 </main>
 
-<!-- ── IMPORT MODAL ───────────────────────────────────────────────────────── -->
 <div id="import-modal" class="modal hidden">
   <div class="modal-content">
     <h3>Import Ingredients from JSON</h3>

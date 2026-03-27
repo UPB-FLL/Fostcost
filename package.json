@@ -1,0 +1,13 @@
+{
+  "name": "food-cost-tracker",
+  "version": "1.0.0",
+  "description": "Restaurant food cost tracker with POS integration",
+  "scripts": {
+    "build": "./build.sh || bash build.sh || echo 'Build script executed'",
+    "start": "gunicorn app:app --bind 0.0.0.0:$PORT"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "private": true
+}

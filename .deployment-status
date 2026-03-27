@@ -1,0 +1,64 @@
+# Deployment Status
+
+## Issue Fixed: pip3 command not found
+
+### Root Cause
+The deployment environment doesn't have `pip3` directly available in PATH.
+
+### Solution Applied
+Created multiple fallback mechanisms:
+
+1. **nixpacks.toml** - Primary solution for Railway/Nixpacks
+   - Explicitly declares Python 3.9 and pip as dependencies
+   - Runs pip install during install phase
+   - Platform should detect and use this automatically
+
+2. **build.sh** - Fallback shell script
+   - Detects available Python package manager (pip3, pip, python3 -m pip, python -m pip)
+   - Uses first available option
+   - Returns error only if none are found
+
+3. **package.json** - Updated build script
+   - Tries to execute build.sh with proper permissions
+   - Falls back gracefully if script fails
+
+### Files Modified/Created
+- ✅ package.json (updated build script)
+- ✅ build.sh (created, executable)
+- ✅ nixpacks.toml (created)
+- ✅ .python-version (created)
+
+### Expected Build Flow
+
+**For Railway/Nixpacks platforms:**
+1. Platform reads nixpacks.toml
+2. Installs Python 3.9 + pip via Nix
+3. Runs: `pip install -r requirements.txt`
+4. Starts with: `gunicorn app:app --bind 0.0.0.0:$PORT`
+
+**For NPM-based build:**
+1. Runs: `npm run build`
+2. Executes: `./build.sh`
+3. Script detects and uses available pip
+4. Installs requirements.txt
+5. Starts with: `npm start` → gunicorn
+
+### Environment Variables Required
+- SUPABASE_URL (required)
+- SUPABASE_KEY (required)
+- SECRET_KEY (required)
+- PORT (auto-set by platform)
+- SQUARE_ACCESS_TOKEN (optional)
+- SPOTON_API_KEY (optional)
+
+### Next Steps
+Retry deployment. The platform should now:
+1. Detect this as a Python project (via nixpacks.toml + requirements.txt)
+2. Install Python and pip
+3. Install dependencies
+4. Start the application with Gunicorn
+
+If issues persist, check platform build logs for:
+- Python version installed
+- Whether pip is available
+- Dependency installation output

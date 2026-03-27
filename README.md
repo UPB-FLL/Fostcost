@@ -1,69 +1,67 @@
 # Food Cost Tracker
 
-A comprehensive restaurant food cost management system with POS integration for Square and SpotOn.
+Restaurant food cost management system with POS integration (Square & SpotOn) and Supabase database.
 
 ## Features
 
-- **Ingredients Management**: Track ingredient costs, units, and suppliers
-- **Products Management**: Define menu items and map ingredients to calculate food costs
-- **Square POS Integration**: Import menu items and sync sales data
-- **SpotOn POS Integration**: Pull sales reports and menu data
-- **Cost Analysis Dashboard**: Monitor food cost percentages and margins
-- **Import/Export**: Bulk import ingredients via JSON
+- **Ingredients Management**: Track costs, units, and suppliers
+- **Products Management**: Menu items with ingredient mapping
+- **Import/Export**: Bulk import via JSON or Square POS
+- **Cost Analysis Dashboard**: Real-time food cost percentages and margins
+- **Database**: Supabase for persistent storage
 
-## Setup
+## Quick Start
 
-### 1. Environment Variables
+### Environment Variables
 
-Copy `.env.example` to `.env` and configure:
+Set these in your deployment environment:
 
-```bash
-cp .env.example .env
+```
+SUPABASE_URL=your-supabase-project-url
+SUPABASE_KEY=your-supabase-anon-key
+SECRET_KEY=random-secret-for-flask-sessions
+PORT=5000
 ```
 
-Required variables:
-- `SUPABASE_URL` - Your Supabase project URL
-- `SUPABASE_KEY` - Your Supabase anon/public key
-- `SQUARE_ACCESS_TOKEN` - Square API access token (optional)
-- `SPOTON_API_KEY` - SpotOn API key (optional)
-- `SECRET_KEY` - Flask session secret
+Optional (for POS integration):
+```
+SQUARE_ACCESS_TOKEN=your-square-token
+SPOTON_API_KEY=your-spoton-key
+```
 
-### 2. Database Setup
-
-The app uses Supabase for data storage. Migration has already been applied with the following tables:
-
-- **ingredients** - Raw ingredients with costs
-- **products** - Menu items/products
-- **product_ingredients** - Junction table linking products to ingredients
-
-### 3. Install Dependencies
+### Local Development
 
 ```bash
 pip install -r requirements.txt
+python app.py
 ```
 
-### 4. Run the Application
+### Database Schema
 
-Development:
-```bash
-make run-dev
-```
+The app uses three Supabase tables (auto-created via migration):
 
-Production:
-```bash
-make run
-```
+1. **ingredients** - Raw ingredients with costs
+2. **products** - Menu items/products
+3. **product_ingredients** - Junction table linking products to ingredients
+
+## Deployment
+
+This is a Python/Flask application that:
+- Uses `requirements.txt` for Python dependencies
+- Uses Gunicorn as the production WSGI server
+- Includes `package.json` for compatibility with Node.js-based deployment platforms
+- Requires Python 3.9+ and access to Supabase
+
+The `npm run build` command installs Python dependencies via pip.
 
 ## Usage
 
-### Adding Ingredients
+1. **Add Ingredients**: Navigate to Ingredients tab, add manually or bulk import via JSON
+2. **Create Products**: Add menu items in Products tab or import from Square
+3. **Map Ingredients**: For each product, add ingredients with quantities
+4. **View Dashboard**: See cost analysis, margins, and food cost percentages
 
-1. Navigate to the **Ingredients** tab
-2. Click **+ Add Ingredient**
-3. Enter name, unit, cost per unit, and optional notes
-4. Save
-
-You can also bulk import ingredients using the **Import JSON** button with this format:
+### JSON Import Format
 
 ```json
 [
@@ -72,79 +70,22 @@ You can also bulk import ingredients using the **Import JSON** button with this 
     "unit": "lb",
     "cost_per_unit": 3.50,
     "notes": "Vendor ABC"
-  },
-  {
-    "name": "Tomato",
-    "unit": "lb",
-    "cost_per_unit": 2.00,
-    "notes": "Organic"
   }
 ]
 ```
 
-### Creating Products
-
-1. Navigate to the **Products** tab
-2. Click **+ Add Product** or import from Square using **Import from Square**
-3. Enter product name, sale price, and category
-4. Add ingredients by clicking **+ Add Ingredient Row**
-5. Select ingredient and quantity for each component
-6. Save
-
-### Importing from Square
-
-1. Go to **Square POS** tab
-2. Click **Load Locations** to fetch your Square locations
-3. Use **Import from Square** button in the Products tab to automatically import all menu items
-
-The system will create products with prices from your Square catalog. You can then add ingredient mappings to calculate food costs.
-
-### Viewing Cost Analysis
-
-The **Dashboard** tab shows:
-- Total products tracked
-- Total ingredients
-- Average food cost percentage
-- Individual product margins and food cost percentages
-- Status indicators (On Target, Near Limit, Over Budget)
-
 ## API Endpoints
 
-### Ingredients
-- `GET /api/ingredients` - List all ingredients
-- `POST /api/ingredients` - Create ingredient
-- `PUT /api/ingredients/<id>` - Update ingredient
-- `DELETE /api/ingredients/<id>` - Delete ingredient
-- `POST /api/ingredients/import` - Bulk import ingredients
+- `GET/POST /api/ingredients` - Manage ingredients
+- `POST /api/ingredients/import` - Bulk import
+- `GET/POST /api/products` - Manage products
+- `POST /api/square/import_menu` - Import from Square
+- `GET /api/cost_summary` - Cost analysis
 
-### Products
-- `GET /api/products` - List all products
-- `POST /api/products` - Create product
-- `GET /api/products/<id>` - Get product with ingredients
-- `PUT /api/products/<id>` - Update product
-- `DELETE /api/products/<id>` - Delete product
-
-### Square Integration
-- `GET /api/square/locations` - List Square locations
-- `GET /api/square/catalog` - Fetch Square catalog
-- `POST /api/square/import_menu` - Import Square menu as products
-- `POST /api/square/orders` - Fetch orders for date range
-- `POST /api/square/sales_mix` - Get sales mix report
-
-### Analytics
-- `GET /api/cost_summary` - Get cost summary with margins and food cost %
-
-## Deployment
-
-See [DEPLOY.md](DEPLOY.md) for AWS EC2 deployment instructions.
-
-## Architecture
+## Tech Stack
 
 - **Backend**: Flask (Python)
 - **Database**: Supabase (PostgreSQL)
 - **Frontend**: Vanilla JavaScript
-- **POS Integration**: Square API, SpotOn API
-
-## License
-
-MIT
+- **Server**: Gunicorn
+- **Integrations**: Square API, SpotOn API
