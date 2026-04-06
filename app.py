@@ -13,10 +13,13 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "change-me-in-production")
 
-supabase: Client = create_client(
-    os.environ.get("SUPABASE_URL", ""),
-    os.environ.get("SUPABASE_KEY", "")
-)
+SUPABASE_URL = os.environ.get("SUPABASE_URL") or os.environ.get("VITE_SUPABASE_URL", "")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY") or os.environ.get("VITE_SUPABASE_ANON_KEY", "")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise ValueError("SUPABASE_URL and SUPABASE_KEY environment variables are required")
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def square_headers():
     return {
